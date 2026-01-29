@@ -30,7 +30,7 @@ buf-generate:
 	buf generate
 	
 buf-generate-js:
-	buf generate --template js.gen.yaml --include-imports
+	buf generate --template js.gen.yaml --include-imports && cd ts  && sh generate-index.sh && cd -
 	
 
 buf-download:

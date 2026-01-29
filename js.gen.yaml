@@ -3,7 +3,7 @@ clean: true
 plugins:
   # TypeScript 代码生成
   - remote: buf.build/bufbuild/es:v2.11.0
-    out: gen/js/mgx/wallet/src
+    out: ts/src
     opt:
       - target=ts
 inputs:
