@@ -1,0 +1,30 @@
+syntax = "proto3";
+package admin;
+import "google/api/annotations.proto";
+
+option go_package = "github.com/agent-sapient/immigration-chat-admin-idl-go/proto/admin";
+
+
+message TestRequest {
+  bool ok=1;
+
+}
+
+enum TestEnum {
+  TEST_ENUM_UNSPECIFIED = 0;
+  TEST_ENUM_OK = 1;
+}
+message TestResponse {
+  TestEnum test_enum = 1;
+}
+
+
+service TestService {
+  // Test
+  rpc Test(TestRequest) returns (TestResponse) {
+    option (google.api.http) = {
+      post: "/api/test"
+      body: "*"
+    };
+  }
+}

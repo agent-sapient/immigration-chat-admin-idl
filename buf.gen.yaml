@@ -1,0 +1,21 @@
+version: v2
+clean: true
+plugins:
+  # Generate golang code
+  - remote: buf.build/protocolbuffers/go
+    out: go/proto
+    opt:
+      - paths=source_relative
+  # Generate golang ConnectRPC code
+  - remote: buf.build/connectrpc/go
+    out: go/proto
+    opt:
+      - paths=source_relative
+  # Generate OpenAPI spec
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.27.5
+    out: openapi
+    opt:
+      - json_names_for_fields=false
+      - allow_merge=true
+inputs:
+  - directory: .

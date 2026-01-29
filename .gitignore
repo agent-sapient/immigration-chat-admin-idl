@@ -1,0 +1,29 @@
+# Buf cache and build artifacts
+.buf/
+
+# Generated code (uncomment if generated code should not be committed)
+# gen/
+
+# Third-party dependencies
+third_party/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+*.bak

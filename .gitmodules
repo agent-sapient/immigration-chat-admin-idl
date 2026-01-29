@@ -1,0 +1,8 @@
+[submodule "ts"]
+	path = ts
+	url = git@github.com:agent-sapient/immigration-chat-admin-idl-ts.git
+	branch = master
+[submodule "go"]
+	path = go
+	url = git@github.com:agent-sapient/immigration-chat-admin-idl-go.git
+	branch = master

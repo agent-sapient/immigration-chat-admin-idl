@@ -1,0 +1,12 @@
+version: v2
+clean: true
+plugins:
+  # TypeScript 代码生成
+  - remote: buf.build/bufbuild/es:v2.11.0
+    out: gen/js/mgx/wallet/src
+    opt:
+      - target=ts
+inputs:
+  - directory: .
+# 注意: 要包含依赖（如 googleapis），需要在运行 buf generate 时添加 --include-imports 标志
+# 例如: buf generate --template js.gen.yaml --include-imports
