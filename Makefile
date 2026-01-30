@@ -12,13 +12,13 @@ docker-generate:
 		-w /workspace \
 		--entrypoint sh \
 		$(BUF_IMAGE) \
-		-c "buf dep update && buf lint && buf generate "
+		-c "buf dep update && buf lint && buf generate && buf generate --template js.gen.yaml --include-imports && cd ts  && sh generate-index.sh && cd -"
 
 buf-install:
 	brew install bufbuild/buf/buf
 
 buf-gen:
-	$(MAKE) buf-dep && $(MAKE) buf-lint && $(MAKE) buf-generate 
+	$(MAKE) buf-dep && $(MAKE) buf-lint && $(MAKE) buf-generate && $(MAKE) buf-generate-js
 
 buf-lint:
 	buf lint

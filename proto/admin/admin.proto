@@ -1,30 +1,116 @@
 syntax = "proto3";
 package admin;
+
 import "google/api/annotations.proto";
 
 option go_package = "github.com/agent-sapient/immigration-chat-admin-idl-go/proto/admin";
 
 
-message TestRequest {
-  bool ok=1;
-
+// 定义用户信息消息类型
+message User {
+  string id = 1 [json_name = "id"];
+  string username = 2 [json_name = "username"];
+  string email = 3 [json_name = "email"];
+  string phone = 4 [json_name = "phone"];
+  string created_at = 5 [json_name = "created_at"];
 }
 
-enum TestEnum {
-  TEST_ENUM_UNSPECIFIED = 0;
-  TEST_ENUM_OK = 1;
+// 创建用户请求消息
+message CreateUserRequest {
+  string username = 1 [json_name = "username"];
+  string password = 2 [json_name = "password"];
+  string email = 3 [json_name = "email"];
+  string phone = 4 [json_name = "phone"];
 }
-message TestResponse {
-  TestEnum test_enum = 1;
+
+// 创建用户响应消息
+message CreateUserResponse {
+  User user = 1 [json_name = "user"];
+}
+
+// 获取用户详情请求消息
+message GetUserRequest {
+  string user_id = 1 [json_name = "user_id"];
+}
+
+// 获取用户详情响应消息
+message GetUserResponse {
+  User user = 1 [json_name = "user"];
+}
+
+// 用户密码登录请求消息
+message LoginRequest {
+  string username = 1 [json_name = "username"];
+  string password = 2 [json_name = "password"];
+}
+
+// 用户密码登录响应消息
+message LoginResponse {
+  string token = 1 [json_name = "token"];
+  User user = 2 [json_name = "user"];
+}
+
+// 用户退出请求消息
+message LogoutRequest {
+  string token = 1 [json_name = "token"];
+}
+
+// 用户退出响应消息
+message LogoutResponse {
+  bool success = 1 [json_name = "success"];
+}
+
+// 刷新token请求消息
+message RefreshTokenRequest {
+  string token = 1 [json_name = "token"];
+}
+
+// 刷新token响应消息
+message RefreshTokenResponse {
+  string token = 1 [json_name = "token"];
 }
 
 
-service TestService {
-  // Test
-  rpc Test(TestRequest) returns (TestResponse) {
+service AdminService {
+  // 用户密码登录
+  rpc Login(LoginRequest) returns (LoginResponse) {
     option (google.api.http) = {
-      post: "/api/test"
+      post: "/api/login"
       body: "*"
+    };
+  }
+
+  // 用户退出
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/api/logout"
+      body: "*"
+    };
+  }
+
+  // 刷新token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {
+    option (google.api.http) = {
+      post: "/api/refresh-token"
+      body: "*"
+    };
+  }
+
+}
+
+service AdminInnerService {
+  // 创建用户
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option (google.api.http) = {
+      post: "/inner/users"
+      body: "*"
+    };
+  }
+
+  // 获取用户详情
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (google.api.http) = {
+      get: "/inner/users/{user_id}"
     };
   }
 }

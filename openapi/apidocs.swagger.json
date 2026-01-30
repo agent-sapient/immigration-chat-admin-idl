@@ -6,7 +6,10 @@
   },
   "tags": [
     {
-      "name": "TestService"
+      "name": "AdminService"
+    },
+    {
+      "name": "AdminInnerService"
     }
   ],
   "consumes": [
@@ -16,15 +19,15 @@
     "application/json"
   ],
   "paths": {
-    "/api/test": {
+    "/api/login": {
       "post": {
-        "summary": "Test",
-        "operationId": "TestService_Test",
+        "summary": "用户密码登录",
+        "operationId": "AdminService_Login",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/adminTestResponse"
+              "$ref": "#/definitions/adminLoginResponse"
             }
           },
           "default": {
@@ -40,40 +43,263 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/adminTestRequest"
+              "$ref": "#/definitions/adminLoginRequest"
             }
           }
         ],
         "tags": [
-          "TestService"
+          "AdminService"
+        ]
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "summary": "用户退出",
+        "operationId": "AdminService_Logout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminLogoutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminLogoutRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminService"
+        ]
+      }
+    },
+    "/api/refresh-token": {
+      "post": {
+        "summary": "刷新token",
+        "operationId": "AdminService_RefreshToken",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminRefreshTokenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminRefreshTokenRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminService"
+        ]
+      }
+    },
+    "/inner/users": {
+      "post": {
+        "summary": "创建用户",
+        "operationId": "AdminInnerService_CreateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminCreateUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminCreateUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminInnerService"
+        ]
+      }
+    },
+    "/inner/users/{user_id}": {
+      "get": {
+        "summary": "获取用户详情",
+        "operationId": "AdminInnerService_GetUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminGetUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminInnerService"
         ]
       }
     }
   },
   "definitions": {
-    "adminTestEnum": {
-      "type": "string",
-      "enum": [
-        "TEST_ENUM_UNSPECIFIED",
-        "TEST_ENUM_OK"
-      ],
-      "default": "TEST_ENUM_UNSPECIFIED"
-    },
-    "adminTestRequest": {
+    "adminCreateUserRequest": {
       "type": "object",
       "properties": {
-        "ok": {
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "title": "创建用户请求消息"
+    },
+    "adminCreateUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/adminUser"
+        }
+      },
+      "title": "创建用户响应消息"
+    },
+    "adminGetUserResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/adminUser"
+        }
+      },
+      "title": "获取用户详情响应消息"
+    },
+    "adminLoginRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "title": "用户密码登录请求消息"
+    },
+    "adminLoginResponse": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/definitions/adminUser"
+        }
+      },
+      "title": "用户密码登录响应消息"
+    },
+    "adminLogoutRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        }
+      },
+      "title": "用户退出请求消息"
+    },
+    "adminLogoutResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
           "type": "boolean"
         }
-      }
+      },
+      "title": "用户退出响应消息"
     },
-    "adminTestResponse": {
+    "adminRefreshTokenRequest": {
       "type": "object",
       "properties": {
-        "test_enum": {
-          "$ref": "#/definitions/adminTestEnum"
+        "token": {
+          "type": "string"
         }
-      }
+      },
+      "title": "刷新token请求消息"
+    },
+    "adminRefreshTokenResponse": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        }
+      },
+      "title": "刷新token响应消息"
+    },
+    "adminUser": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        }
+      },
+      "title": "定义用户信息消息类型"
     },
     "protobufAny": {
       "type": "object",
