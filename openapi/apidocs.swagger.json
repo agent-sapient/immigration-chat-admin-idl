@@ -25,6 +25,177 @@
     "application/json"
   ],
   "paths": {
+    "/api/invite-codes/batch-query": {
+      "post": {
+        "summary": "BatchQueryCodes - 批量查询邀请码信息",
+        "description": "功能: 根据邀请码字符串批量查询详细信息\n\n使用场景:\n- 批量导入邀请码时检查状态\n- 批量查看邀请码使用情况\n\n参数要求:\n- codes: 邀请码字符串列表，最多 100 个\n\n返回:\n- found: 找到的邀请码列表\n- not_found: 未找到的邀请码列表",
+        "operationId": "AdminInviteService_BatchQueryCodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminBatchQueryCodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminBatchQueryCodesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminInviteService"
+        ]
+      }
+    },
+    "/api/invite-codes/generate": {
+      "post": {
+        "summary": "GenerateCodes - 生成邀请码（管理员生成）",
+        "description": "功能: 批量生成管理员邀请码\n\n参数要求:\n- type: 必填，\"normal\" 或 \"unlimited\"\n- count: 必填，1-100\n- note: 必填，备注说明（同一批次共享）\n\n返回:\n- batch_id: 批次号（用于追踪和导出）\n- codes: 生成的邀请码列表\n\n业务规则:\n- 管理员生成的邀请码标记 inviter_kind=admin\n- 使用不限额邀请码激活的用户自动获得不限额权益",
+        "operationId": "AdminInviteService_GenerateCodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminGenerateCodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminGenerateCodesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminInviteService"
+        ]
+      }
+    },
+    "/api/invite-codes/query": {
+      "post": {
+        "summary": "GetInviteCodes - 获取邀请码列表",
+        "description": "功能: 分页查询邀请码列表，支持多维度筛选\n\n筛选条件:\n- code: 精确匹配邀请码\n- batch_id: 批次号（同一批生成的邀请码共享）\n- type: 类型（normal/unlimited）\n- status: 状态（unused/used/revoked/suspended）\n- inviter_kind: 生成者类型（user/admin）\n- 生成者/使用者 ID\n- 时间范围\n\n返回: 邀请码列表（包含完整信息和关联用户信息）",
+        "operationId": "AdminInviteService_GetInviteCodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminInviteCodeListResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "-------------------------------------------------------------------------\n 搜索条件\n -------------------------------------------------------------------------",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminInviteCodeQuery"
+            }
+          }
+        ],
+        "tags": [
+          "AdminInviteService"
+        ]
+      }
+    },
+    "/api/invite-codes/regenerate": {
+      "post": {
+        "summary": "RegenerateCodes - 重新生成邀请码（换码）",
+        "description": "功能: 作废指定邀请码并生成新码\n\n使用场景:\n- 用户邀请码泄露，需要作废旧码换新码\n- 邀请码长期未使用，需要更换\n\n业务规则:\n- 仅对\"未使用\"状态的邀请码允许换码\n- 换码 = 作废旧码 + 生成新码\n- 新码继承原码的 type、inviter 等属性\n- 不增加邀请名额\n\n参数要求:\n- codes: 要换的邀请码列表\n- reason: 必填\n\n返回:\n- revoked: 被作废的邀请码列表\n- generated: 新生成的邀请码列表\n\n注意: 如果某个邀请码不存在或状态不允许，会跳过并继续处理其他邀请码",
+        "operationId": "AdminInviteService_RegenerateCodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminRegenerateCodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminRegenerateCodesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminInviteService"
+        ]
+      }
+    },
+    "/api/invite-codes/revoke": {
+      "post": {
+        "summary": "RevokeCode - 作废邀请码",
+        "description": "功能: 作废指定的邀请码\n\n参数要求:\n- code: 必填，邀请码字符串\n- reason: 必填\n\n前置条件:\n- 邀请码状态为 unused 或 suspended\n\n错误码:\n- 400: 已使用的邀请码不能作废 / 邀请码已被作废\n- 404: 邀请码不存在",
+        "operationId": "AdminInviteService_RevokeCode",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminApiResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminRevokeCodeRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminInviteService"
+        ]
+      }
+    },
     "/api/login": {
       "post": {
         "summary": "用户密码登录",
@@ -124,6 +295,346 @@
         ]
       }
     },
+    "/api/users/activate": {
+      "post": {
+        "summary": "ActivateUser - 激活用户（后台手动激活）",
+        "description": "功能: 将 UNAPPLIED 或 WAITING 状态的用户直接激活为 ACTIVE\n\n业务逻辑:\n1. 用户状态变为 ACTIVE\n2. 激活来源记录为 ADMIN\n3. 为用户生成 3 个普通邀请码\n\n参数要求:\n- user_id: 必填\n- reason: 必填（激活原因，用于审计）\n\n前置条件:\n- 用户状态为 UNAPPLIED 或 WAITING\n\n错误码:\n- 400: 状态不允许激活（已激活/已封禁/已删除）\n- 404: 用户不存在",
+        "operationId": "AdminUserService_ActivateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminApiResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminActivateUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/ban": {
+      "post": {
+        "summary": "BanUser - 封禁用户",
+        "description": "功能: 封禁活跃用户，立即踢下线\n\n业务逻辑:\n1. 用户状态变为 BANNED\n2. 撤销用户所有 token（立即踢下线）\n3. 暂停用户所有未使用的邀请码（解封时恢复）\n\n参数要求:\n- user_id: 必填\n- reason: 必填（封禁原因，用于审计和用户申诉）\n\n前置条件:\n- 用户状态为 ACTIVE\n\n错误码:\n- 400: 状态不允许封禁（非 ACTIVE 状态）\n- 404: 用户不存在",
+        "operationId": "AdminUserService_BanUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminApiResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminBanUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/delete": {
+      "post": {
+        "summary": "DeleteUser - 删除用户（软删除）",
+        "description": "功能: 删除用户，释放账号标识\n\n⚠️ 警告: 此操作不可逆！\n\n业务逻辑:\n1. 用户状态变为 DELETED\n2. 清空手机号、openid、unionid（释放标识，允许重新注册）\n3. 作废所有未使用的邀请码\n4. 撤销所有 token（立即踢下线）\n5. 记录注销日志（用于审计）\n\n参数要求:\n- user_id: 必填\n- reason: 必填（删除原因，用于审计）\n\n错误码:\n- 400: 用户已被删除\n- 404: 用户不存在",
+        "operationId": "AdminUserService_DeleteUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminApiResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminDeleteUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/operations/query": {
+      "post": {
+        "summary": "GetUserOperations - 获取用户操作记录",
+        "description": "功能: 查询针对指定用户的所有管理员操作记录\n\n用途: 审计追踪，查看用户被执行过哪些操作\n\n记录内容:\n- 操作类型（activate/ban/unban/delete/set_quota 等）\n- 操作参数（如设置的额度值）\n- 操作原因\n- 操作者（admin_id）\n- 操作时间",
+        "operationId": "AdminUserService_GetUserOperations",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminUserOperationsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminUserOperationsQuery"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/profile": {
+      "post": {
+        "summary": "UpdateUserProfile - 修改用户资料",
+        "description": "功能: 修改用户的身份类型、机构名等资料\n\n可修改字段:\n- identity_type: 身份类型（individual/organization）\n- org_name: 机构名称\n\n参数要求:\n- user_id: 必填\n- reason: 必填\n- 至少提供一个要修改的字段\n\n错误码:\n- 404: 用户不存在",
+        "operationId": "AdminUserService_UpdateUserProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminApiResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminUpdateProfileRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/query": {
+      "post": {
+        "summary": "GetUsers - 获取用户列表",
+        "description": "功能: 分页查询用户列表，支持多维度筛选和排序\n\n筛选条件:\n- keyword: 关键词搜索（手机号/昵称/机构名/user_id）\n- status: 状态筛选（支持多选）\n- identity_type: 身份类型（individual/organization）\n- quota_type: 额度类型（default/custom/unlimited）\n- activated_by: 激活方式（auto_release/invite/admin）\n- 时间范围: 注册时间、激活时间\n- 邀请关系: 邀请码、邀请人\n\n返回: 用户列表（包含基本信息、额度信息、邀请码使用统计）",
+        "operationId": "AdminUserService_GetUsers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminUserListResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "支持多维度筛选、排序和分页\n所有筛选条件为可选，不传则不筛选\n\n-------------------------------------------------------------------------\n 搜索条件（模糊匹配）\n -------------------------------------------------------------------------",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminUserQuery"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/quota": {
+      "post": {
+        "summary": "SetUserQuota - 设置用户额度",
+        "description": "功能: 设置用户的每日使用限额或不限额状态\n\n使用场景:\n1. 设置自定义限额: is_unlimited=false, daily_limit=100\n2. 设置不限额: is_unlimited=true\n3. 恢复默认限额: is_unlimited=false, 不传 daily_limit\n4. 关闭不限额: is_unlimited=false（恢复默认 50/天）\n\n参数要求:\n- user_id: 必填\n- reason: 必填\n\n业务规则:\n- 限额调整立即生效\n- 若将限额调低到 \u003c 今日已用，用户立即被拦截到次日\n\n错误码:\n- 404: 用户不存在",
+        "operationId": "AdminUserService_SetUserQuota",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminApiResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "使用场景:\n1. 设置自定义限额: is_unlimited=false, daily_limit=100\n2. 设置不限额: is_unlimited=true（daily_limit 会被忽略）\n3. 恢复默认限额: is_unlimited=false, 不设置 daily_limit",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminSetQuotaRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/unban": {
+      "post": {
+        "summary": "UnbanUser - 解封用户",
+        "description": "功能: 解除用户封禁，恢复正常使用\n\n业务逻辑:\n1. 用户状态恢复为 ACTIVE\n2. 恢复因封禁而暂停的邀请码\n3. 用户原有权益（额度配置等）保留\n\n参数要求:\n- user_id: 必填\n- reason: 必填（解封原因）\n\n前置条件:\n- 用户状态为 BANNED\n\n错误码:\n- 400: 用户非封禁状态\n- 404: 用户不存在",
+        "operationId": "AdminUserService_UnbanUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminApiResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/adminUnbanUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/{user_id}": {
+      "get": {
+        "summary": "GetUserDetail - 获取用户详情",
+        "description": "功能: 获取单个用户的完整信息\n\n返回内容:\n- 基本信息（手机号、昵称、身份类型、机构名等）\n- 状态信息（当前状态、状态变更时间、激活信息）\n- 邀请人信息（谁邀请的、使用的邀请码）\n- 额度信息（类型、限额、今日用量）\n- 手机号变更历史\n- 用户的邀请码列表（3 个）\n\n错误码:\n- 404: 用户不存在",
+        "operationId": "AdminUserService_GetUserDetail",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminUserDetailResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "用户 ID（UUID 格式）\n示例: \"550e8400-e29b-41d4-a716-446655440000\"",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminUserService"
+        ]
+      }
+    },
+    "/api/users/{user_id}/invite-chain": {
+      "get": {
+        "summary": "GetInviteChain - 获取邀请链",
+        "description": "功能: 查看用户的邀请关系链\n\n返回内容:\n- user: 当前用户信息\n- invited_by: 邀请当前用户的人（上级）\n- invited_users: 当前用户邀请的人列表（下级）\n\n用途:\n- 追溯邀请来源\n- 查看邀请裂变效果\n\n错误码:\n- 404: 用户不存在",
+        "operationId": "AdminInviteService_GetInviteChain",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/adminInviteChainResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_id",
+            "description": "用户 ID（UUID 格式）\n示例: \"550e8400-e29b-41d4-a716-446655440000\"",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminInviteService"
+        ]
+      }
+    },
     "/inner/users": {
       "post": {
         "summary": "创建用户",
@@ -190,6 +701,100 @@
     }
   },
   "definitions": {
+    "adminActivateUserRequest": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（必填）"
+        },
+        "reason": {
+          "type": "string",
+          "title": "激活原因（必填）\n示例: \"VIP 客户优先激活\"、\"内部测试账号\""
+        }
+      },
+      "title": "ActivateUserRequest - 激活用户请求"
+    },
+    "adminApiResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "title": "业务状态码\n- 0: 成功\n- 400: 参数错误（如缺少必填字段、参数值无效）\n- 401: 认证失败（如缺少 x-admin-id）\n- 404: 资源不存在（如用户不存在、邀请码不存在）\n- 500: 服务器内部错误"
+        },
+        "message": {
+          "type": "string",
+          "title": "响应消息（中文）\n成功时返回操作结果描述，失败时返回错误原因"
+        }
+      },
+      "description": "用于不需要返回额外业务数据的操作（如：激活用户、封禁用户等）\n调用方应首先检查 code 字段判断操作是否成功\n\n示例响应：\n- 成功: { code: 0, message: \"激活成功\" }\n- 失败: { code: 404, message: \"用户不存在\" }\n- 参数错误: { code: 400, message: \"reason 参数必填\" }\n- 认证失败: { code: 401, message: \"缺少管理员身份信息 (x-admin-id)\" }\n- 服务器错误: { code: 500, message: \"内部错误: ...\" }",
+      "title": "ApiResponse - 通用 API 响应"
+    },
+    "adminBanUserRequest": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（必填）"
+        },
+        "reason": {
+          "type": "string",
+          "title": "封禁原因（必填）\n示例: \"违反使用条款\"、\"异常使用行为\"\n注意: 此原因会记录在案，可能用于用户申诉时的参考"
+        }
+      },
+      "title": "BanUserRequest - 封禁用户请求"
+    },
+    "adminBatchQueryCodesData": {
+      "type": "object",
+      "properties": {
+        "found": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/adminInviteCodeListItem"
+          },
+          "title": "找到的邀请码列表"
+        },
+        "not_found": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "未找到的邀请码列表\n返回原始请求中不存在的邀请码字符串"
+        }
+      },
+      "title": "BatchQueryCodesData - 批量查询邀请码数据"
+    },
+    "adminBatchQueryCodesRequest": {
+      "type": "object",
+      "properties": {
+        "codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "邀请码字符串列表\n最多 100 个，超出返回错误\n支持大小写，会自动转为大写匹配"
+        }
+      },
+      "title": "BatchQueryCodesRequest - 批量查询邀请码请求"
+    },
+    "adminBatchQueryCodesResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/adminBatchQueryCodesData"
+        }
+      },
+      "title": "BatchQueryCodesResponse - 批量查询邀请码响应"
+    },
     "adminCreateUserRequest": {
       "type": "object",
       "properties": {
@@ -217,6 +822,81 @@
       },
       "title": "创建用户响应消息"
     },
+    "adminDeleteUserRequest": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（必填）"
+        },
+        "reason": {
+          "type": "string",
+          "title": "删除原因（必填）\n⚠️ 此操作不可逆，请务必填写准确的原因\n示例: \"用户主动申请注销\"、\"长期未使用清理\""
+        }
+      },
+      "title": "DeleteUserRequest - 删除用户请求"
+    },
+    "adminGenerateCodesData": {
+      "type": "object",
+      "properties": {
+        "batch_id": {
+          "type": "string",
+          "title": "批次号（用于追踪和批量导出）"
+        },
+        "codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "生成的邀请码列表"
+        },
+        "type": {
+          "type": "string",
+          "title": "邀请码类型"
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32",
+          "title": "实际生成数量"
+        }
+      },
+      "title": "GenerateCodesData - 生成邀请码数据"
+    },
+    "adminGenerateCodesRequest": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "title": "邀请码类型（必填）\n可选值:\n- \"normal\": 普通邀请码（Ops、SuperAdmin 可生成）\n- \"unlimited\": 不限额邀请码（仅 SuperAdmin 可生成）"
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32",
+          "title": "生成数量（必填）\n范围: 1-100"
+        },
+        "note": {
+          "type": "string",
+          "title": "备注说明（必填）\n同一批次的邀请码共享此备注\n示例: \"2026年2月营销活动\"、\"内部测试用\""
+        }
+      },
+      "title": "GenerateCodesRequest - 生成邀请码请求"
+    },
+    "adminGenerateCodesResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/adminGenerateCodesData"
+        }
+      },
+      "title": "GenerateCodesResponse - 生成邀请码响应"
+    },
     "adminGetUserResponse": {
       "type": "object",
       "properties": {
@@ -225,6 +905,343 @@
         }
       },
       "title": "获取用户详情响应消息"
+    },
+    "adminInviteChainData": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/adminInviteChainUser",
+          "title": "当前用户信息"
+        },
+        "invited_by": {
+          "$ref": "#/definitions/adminInvitedByInfo",
+          "title": "邀请当前用户的人（上级）\n如果是自然激活（auto_release）或管理员直接激活，此字段为 null"
+        },
+        "invited_users": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/adminInviteChainInvitee"
+          },
+          "title": "当前用户邀请的人列表（下级）\n按邀请时间倒序排列"
+        }
+      },
+      "description": "展示用户的邀请关系：谁邀请了他 + 他邀请了谁",
+      "title": "InviteChainData - 邀请链数据"
+    },
+    "adminInviteChainInvitee": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string",
+          "title": "手机号（脱敏显示）"
+        },
+        "code": {
+          "type": "string",
+          "title": "使用的邀请码"
+        },
+        "activated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "激活时间（Unix 时间戳，秒）"
+        }
+      },
+      "title": "InviteChainInvitee - 邀请链中的被邀请人（下级）"
+    },
+    "adminInviteChainResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/adminInviteChainData"
+        }
+      },
+      "title": "InviteChainResponse - 邀请链响应"
+    },
+    "adminInviteChainUser": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string",
+          "title": "手机号（脱敏显示）"
+        },
+        "activated_by": {
+          "type": "string",
+          "title": "激活方式: \"auto_release\"、\"invite\"、\"admin\""
+        },
+        "activated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "激活时间（Unix 时间戳，秒）"
+        }
+      },
+      "title": "InviteChainUser - 邀请链中的用户信息"
+    },
+    "adminInviteCodeDetail": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "title": "邀请码字符串（8 位大写字母+数字）\n示例: \"ABC12345\""
+        },
+        "type": {
+          "type": "string",
+          "title": "邀请码类型\n可选值:\n- \"normal\": 普通邀请码\n- \"unlimited\": 不限额邀请码"
+        },
+        "status": {
+          "type": "string",
+          "title": "邀请码状态\n可选值:\n- \"unused\": 未使用\n- \"used\": 已使用\n- \"revoked\": 已作废\n- \"suspended\": 已暂停（用户被封禁时暂停）"
+        },
+        "used_by": {
+          "$ref": "#/definitions/adminUserBrief",
+          "title": "使用者信息（status=\"used\" 时有值）"
+        },
+        "used_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "使用时间（Unix 时间戳，秒）"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "创建时间（Unix 时间戳，秒）"
+        }
+      },
+      "description": "用于用户详情页展示用户的邀请码列表",
+      "title": "InviteCodeDetail - 邀请码详情"
+    },
+    "adminInviteCodeListData": {
+      "type": "object",
+      "properties": {
+        "page_info": {
+          "$ref": "#/definitions/adminPageInfo",
+          "title": "分页信息"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/adminInviteCodeListItem"
+          },
+          "title": "邀请码列表"
+        }
+      },
+      "title": "InviteCodeListData - 邀请码列表数据"
+    },
+    "adminInviteCodeListItem": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "title": "邀请码字符串（8 位大写字母+数字）"
+        },
+        "type": {
+          "type": "string",
+          "title": "邀请码类型: \"normal\" 或 \"unlimited\""
+        },
+        "status": {
+          "type": "string",
+          "title": "邀请码状态: \"unused\"、\"used\"、\"revoked\"、\"suspended\""
+        },
+        "note": {
+          "type": "string",
+          "title": "备注说明"
+        },
+        "inviter_kind": {
+          "type": "string",
+          "title": "生成者类型: \"user\" 或 \"admin\""
+        },
+        "inviter_admin_id": {
+          "type": "string",
+          "title": "生成者管理员 ID（inviter_kind=\"admin\" 时有值）"
+        },
+        "inviter_user": {
+          "$ref": "#/definitions/adminUserBrief",
+          "title": "生成者用户信息（inviter_kind=\"user\" 时有值）"
+        },
+        "used_by": {
+          "$ref": "#/definitions/adminUserBrief",
+          "title": "使用者信息（status=\"used\" 时有值）"
+        },
+        "used_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "使用时间（Unix 时间戳，秒）"
+        },
+        "batch_id": {
+          "type": "string",
+          "title": "批次号（同一批生成的邀请码共享）"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "创建时间（Unix 时间戳，秒）"
+        }
+      },
+      "description": "包含邀请码的完整信息",
+      "title": "InviteCodeListItem - 邀请码列表项"
+    },
+    "adminInviteCodeListResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/adminInviteCodeListData"
+        }
+      },
+      "title": "InviteCodeListResponse - 邀请码列表响应"
+    },
+    "adminInviteCodeQuery": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "title": "邀请码精确匹配\n支持大小写，会自动转为大写匹配"
+        },
+        "batch_id": {
+          "type": "string",
+          "title": "批次号筛选\n同一批生成的邀请码共享一个 batch_id"
+        },
+        "type": {
+          "type": "string",
+          "title": "类型筛选\n可选值: \"normal\"（普通）、\"unlimited\"（不限额）"
+        },
+        "status": {
+          "type": "string",
+          "title": "状态筛选\n可选值:\n- \"unused\": 未使用\n- \"used\": 已使用\n- \"revoked\": 已作废\n- \"suspended\": 已暂停（用户被封禁时）"
+        },
+        "inviter_kind": {
+          "type": "string",
+          "title": "生成者类型筛选\n可选值: \"user\"（用户生成）、\"admin\"（管理员生成）"
+        },
+        "inviter_user_id": {
+          "type": "string",
+          "title": "生成者用户 ID（inviter_kind=\"user\" 时）"
+        },
+        "inviter_admin_id": {
+          "type": "string",
+          "title": "生成者管理员 ID（inviter_kind=\"admin\" 时）"
+        },
+        "used_by_user_id": {
+          "type": "string",
+          "title": "使用者用户 ID\n筛选被指定用户使用的邀请码"
+        },
+        "created_at": {
+          "$ref": "#/definitions/adminTimeRange",
+          "title": "创建时间范围"
+        },
+        "sort_by": {
+          "type": "string",
+          "title": "排序字段\n可选值: \"created_at\"（默认）、\"used_at\""
+        },
+        "sort_order": {
+          "type": "string",
+          "title": "排序方向\n可选值: \"desc\"（默认）、\"asc\""
+        },
+        "pagination": {
+          "$ref": "#/definitions/adminPagination"
+        }
+      },
+      "description": "-------------------------------------------------------------------------\n 搜索条件\n -------------------------------------------------------------------------",
+      "title": "InviteCodeQuery - 邀请码列表查询请求"
+    },
+    "adminInviteSummary": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "format": "int32",
+          "title": "邀请码总数（通常为 3）"
+        },
+        "used": {
+          "type": "integer",
+          "format": "int32",
+          "title": "已使用数量"
+        }
+      },
+      "description": "用于列表展示用户的邀请码使用情况",
+      "title": "InviteSummary - 邀请码统计摘要"
+    },
+    "adminInvitedByInfo": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "title": "邀请人类型: \"user\" 或 \"admin\""
+        },
+        "user_id": {
+          "type": "string",
+          "title": "邀请人用户 ID（kind=\"user\" 时有值）"
+        },
+        "nickname": {
+          "type": "string",
+          "title": "邀请人昵称（kind=\"user\" 时有值）"
+        },
+        "phone": {
+          "type": "string",
+          "title": "邀请人手机号（kind=\"user\" 时有值，脱敏显示）"
+        },
+        "admin_id": {
+          "type": "string",
+          "title": "管理员 ID（kind=\"admin\" 时有值）"
+        },
+        "code": {
+          "type": "string",
+          "title": "使用的邀请码"
+        }
+      },
+      "title": "InvitedByInfo - 被谁邀请信息（上级）"
+    },
+    "adminInviterInfo": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "title": "邀请人类型\n可选值:\n- \"user\": 用户邀请（通过用户的邀请码）\n- \"admin\": 管理员邀请（通过管理员生成的邀请码）"
+        },
+        "user_id": {
+          "type": "string",
+          "title": "邀请人用户 ID（kind=\"user\" 时有值）"
+        },
+        "phone": {
+          "type": "string",
+          "title": "邀请人手机号（kind=\"user\" 时有值，脱敏显示）"
+        },
+        "nickname": {
+          "type": "string",
+          "title": "邀请人昵称（kind=\"user\" 时有值）"
+        },
+        "admin_id": {
+          "type": "string",
+          "title": "管理员 ID（kind=\"admin\" 时有值）"
+        }
+      },
+      "description": "记录邀请码的来源（用户邀请或管理员生成）",
+      "title": "InviterInfo - 邀请人信息"
     },
     "adminLoginRequest": {
       "type": "object",
@@ -268,6 +1285,92 @@
       },
       "title": "用户退出响应消息"
     },
+    "adminOperationRecord": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "title": "操作类型\n可选值:\n- \"activate\": 激活用户\n- \"ban\": 封禁用户\n- \"unban\": 解封用户\n- \"delete\": 删除用户\n- \"set_quota\": 设置限额\n- \"set_unlimited\": 设置不限额\n- \"update_profile\": 修改用户资料\n- \"generate_code\": 生成邀请码\n- \"revoke_code\": 作废邀请码\n- \"regenerate_code\": 重新生成邀请码"
+        },
+        "params": {
+          "type": "string",
+          "title": "操作参数（JSON 字符串）\n记录操作的具体参数，如:\n- 设置限额: {\"daily_limit\": 100}\n- 封禁用户: {\"revoked_tokens\": 2, \"suspended_codes\": 3}"
+        },
+        "reason": {
+          "type": "string",
+          "title": "操作原因"
+        },
+        "admin_id": {
+          "type": "string",
+          "title": "操作者管理员 ID"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "操作时间（Unix 时间戳，秒）"
+        }
+      },
+      "description": "记录管理员对用户执行的操作，用于审计",
+      "title": "OperationRecord - 操作记录"
+    },
+    "adminPageInfo": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "format": "int32",
+          "title": "符合查询条件的总记录数"
+        },
+        "page": {
+          "type": "integer",
+          "format": "int32",
+          "title": "当前页码（与请求参数一致）"
+        },
+        "page_size": {
+          "type": "integer",
+          "format": "int32",
+          "title": "每页数量（与请求参数一致）"
+        }
+      },
+      "description": "用于列表查询响应中返回分页状态\n调用方可据此计算总页数: total_pages = ceil(total / page_size)",
+      "title": "PageInfo - 分页响应信息"
+    },
+    "adminPagination": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32",
+          "title": "页码，从 1 开始\n默认值: 1\n最小值: 1"
+        },
+        "page_size": {
+          "type": "integer",
+          "format": "int32",
+          "title": "每页数量\n默认值: 20\n最小值: 1\n最大值: 100"
+        }
+      },
+      "description": "用于列表查询请求中指定分页参数\n如不传递，默认 page=1, page_size=20",
+      "title": "Pagination - 分页请求参数"
+    },
+    "adminPhoneChangeRecord": {
+      "type": "object",
+      "properties": {
+        "old_phone": {
+          "type": "string",
+          "title": "旧手机号"
+        },
+        "new_phone": {
+          "type": "string",
+          "title": "新手机号"
+        },
+        "changed_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "变更时间（Unix 时间戳，秒）"
+        }
+      },
+      "title": "PhoneChangeRecord - 手机号变更记录"
+    },
     "adminRefreshTokenRequest": {
       "type": "object",
       "properties": {
@@ -285,6 +1388,150 @@
         }
       },
       "title": "刷新token响应消息"
+    },
+    "adminRegenerateCodesData": {
+      "type": "object",
+      "properties": {
+        "revoked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "被作废的邀请码列表"
+        },
+        "generated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "新生成的邀请码列表\n与 revoked 一一对应"
+        }
+      },
+      "title": "RegenerateCodesData - 重新生成邀请码数据"
+    },
+    "adminRegenerateCodesRequest": {
+      "type": "object",
+      "properties": {
+        "codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "要作废并重新生成的邀请码列表\n仅对 \"unused\" 状态的邀请码有效"
+        },
+        "reason": {
+          "type": "string",
+          "title": "换码原因（必填）\n示例: \"原码已泄露\"、\"用户申请换码\""
+        }
+      },
+      "title": "RegenerateCodesRequest - 重新生成邀请码请求（换码）"
+    },
+    "adminRegenerateCodesResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/definitions/adminRegenerateCodesData"
+        }
+      },
+      "title": "RegenerateCodesResponse - 重新生成邀请码响应"
+    },
+    "adminRevokeCodeRequest": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "title": "邀请码字符串（必填）"
+        },
+        "reason": {
+          "type": "string",
+          "title": "作废原因（必填）"
+        }
+      },
+      "title": "RevokeCodeRequest - 作废邀请码请求"
+    },
+    "adminSetQuotaRequest": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（必填）"
+        },
+        "is_unlimited": {
+          "type": "boolean",
+          "title": "是否不限额\n- true: 用户无使用上限\n- false: 使用 daily_limit 或默认限额"
+        },
+        "daily_limit": {
+          "type": "integer",
+          "format": "int32",
+          "title": "每日限额（可选）\n- 设置具体值: 用户每日最多使用该次数\n- 不设置（使用 optional）: 恢复默认值（50/天）\n注意: 当 is_unlimited=true 时，此字段无效"
+        },
+        "reason": {
+          "type": "string",
+          "title": "修改原因（必填）"
+        }
+      },
+      "description": "使用场景:\n1. 设置自定义限额: is_unlimited=false, daily_limit=100\n2. 设置不限额: is_unlimited=true（daily_limit 会被忽略）\n3. 恢复默认限额: is_unlimited=false, 不设置 daily_limit",
+      "title": "SetQuotaRequest - 设置用户额度请求"
+    },
+    "adminTimeRange": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "int64",
+          "title": "开始时间戳（秒，UTC）\n包含边界：time \u003e= start"
+        },
+        "end": {
+          "type": "string",
+          "format": "int64",
+          "title": "结束时间戳（秒，UTC）\n包含边界：time \u003c= end"
+        }
+      },
+      "description": "用于按时间范围筛选数据（如注册时间、激活时间）\n时间戳为 Unix 时间戳（秒），UTC 时区\n\n注意：\n- start 和 end 均为可选，可只传其一实现\"之后\"或\"之前\"筛选\n- 边界包含：start \u003c= time \u003c= end\n- 如 start \u003e end，将返回空结果\n\n示例：\n- 查询 2026-01-01 至 2026-01-31 的数据:\n  { start: 1735689600, end: 1738367999 }\n- 查询 2026-01-01 之后的数据:\n  { start: 1735689600 }",
+      "title": "TimeRange - 时间范围筛选"
+    },
+    "adminUnbanUserRequest": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（必填）"
+        },
+        "reason": {
+          "type": "string",
+          "title": "解封原因（必填）\n示例: \"用户申诉通过\"、\"误封\""
+        }
+      },
+      "title": "UnbanUserRequest - 解封用户请求"
+    },
+    "adminUpdateProfileRequest": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（必填）"
+        },
+        "identity_type": {
+          "type": "string",
+          "title": "身份类型（可选）\n可选值: \"individual\"（个人）、\"organization\"（机构）\n不传则不修改"
+        },
+        "org_name": {
+          "type": "string",
+          "title": "机构名称（可选）\n仅当 identity_type 为 \"organization\" 时有意义\n不传则不修改"
+        },
+        "reason": {
+          "type": "string",
+          "title": "修改原因（必填）"
+        }
+      },
+      "title": "UpdateProfileRequest - 修改用户资料请求"
     },
     "adminUser": {
       "type": "object",
@@ -306,6 +1553,371 @@
         }
       },
       "title": "定义用户信息消息类型"
+    },
+    "adminUserBrief": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID"
+        },
+        "nickname": {
+          "type": "string",
+          "title": "用户昵称"
+        },
+        "phone": {
+          "type": "string",
+          "title": "手机号（脱敏显示，如 \"138****1234\"）"
+        }
+      },
+      "description": "用于在其他对象中引用用户时的简要展示",
+      "title": "UserBrief - 用户简要信息"
+    },
+    "adminUserDetailData": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（系统内部稳定主键）"
+        },
+        "phone": {
+          "type": "string",
+          "title": "当前绑定手机号（完整，未脱敏）\n已删除用户此字段为空"
+        },
+        "phone_history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/adminPhoneChangeRecord"
+          },
+          "title": "手机号变更历史\n按时间倒序排列，最新变更在前"
+        },
+        "nickname": {
+          "type": "string",
+          "title": "用户昵称"
+        },
+        "avatar_url": {
+          "type": "string",
+          "title": "头像 URL"
+        },
+        "identity_type": {
+          "type": "string",
+          "title": "身份类型: \"individual\" 或 \"organization\""
+        },
+        "org_name": {
+          "type": "string",
+          "title": "机构名称（仅机构用户）"
+        },
+        "annual_clients": {
+          "type": "integer",
+          "format": "int32",
+          "title": "年客户量（用户填写的业务信息）"
+        },
+        "status": {
+          "type": "string",
+          "title": "当前状态\n可选值: \"unapplied\"、\"waiting\"、\"active\"、\"banned\"、\"deleted\""
+        },
+        "status_updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "状态最近一次变更时间（Unix 时间戳，秒）"
+        },
+        "applied_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "申请内测时间（UNAPPLIED → WAITING 的时间）"
+        },
+        "activated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "激活时间（进入 ACTIVE 的时间）"
+        },
+        "activated_by": {
+          "type": "string",
+          "title": "激活方式\n可选值:\n- \"auto_release\": 定时自动放量\n- \"invite\": 邀请码激活\n- \"admin\": 后台手动激活"
+        },
+        "activated_by_admin_id": {
+          "type": "string",
+          "title": "激活操作的管理员 ID\n仅当 activated_by=\"admin\" 时有值"
+        },
+        "activated_code": {
+          "type": "string",
+          "title": "使用的邀请码\n仅当 activated_by=\"invite\" 时有值"
+        },
+        "inviter": {
+          "$ref": "#/definitions/adminInviterInfo",
+          "title": "邀请人信息\n通过邀请码激活时记录谁邀请的"
+        },
+        "quota": {
+          "$ref": "#/definitions/adminUserQuotaInfo",
+          "title": "当前额度配置"
+        },
+        "invite_codes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/adminInviteCodeDetail"
+          },
+          "title": "用户的邀请码列表\n用户激活时自动获得 3 个普通邀请码"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "注册时间（Unix 时间戳，秒）"
+        }
+      },
+      "description": "包含用户的完整信息，用于详情页展示\n\n-------------------------------------------------------------------------\n 基本信息\n -------------------------------------------------------------------------",
+      "title": "UserDetailData - 用户详情数据"
+    },
+    "adminUserDetailResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "title": "业务状态码"
+        },
+        "message": {
+          "type": "string",
+          "title": "响应消息"
+        },
+        "data": {
+          "$ref": "#/definitions/adminUserDetailData",
+          "title": "用户详情数据（code=0 时有值）"
+        }
+      },
+      "title": "UserDetailResponse - 用户详情响应"
+    },
+    "adminUserListData": {
+      "type": "object",
+      "properties": {
+        "page_info": {
+          "$ref": "#/definitions/adminPageInfo",
+          "title": "分页信息"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/adminUserListItem"
+          },
+          "title": "用户列表"
+        }
+      },
+      "title": "UserListData - 用户列表数据"
+    },
+    "adminUserListItem": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（UUID 格式）"
+        },
+        "phone": {
+          "type": "string",
+          "title": "当前绑定的手机号\n注意: 已删除用户此字段为空"
+        },
+        "nickname": {
+          "type": "string",
+          "title": "用户昵称"
+        },
+        "identity_type": {
+          "type": "string",
+          "title": "身份类型\n可选值: \"individual\"（个人）、\"organization\"（机构）"
+        },
+        "org_name": {
+          "type": "string",
+          "title": "机构名称（仅机构用户有值）"
+        },
+        "status": {
+          "type": "string",
+          "title": "用户状态\n可选值: \"unapplied\"、\"waiting\"、\"active\"、\"banned\"、\"deleted\""
+        },
+        "quota": {
+          "$ref": "#/definitions/adminUserQuotaInfo",
+          "title": "额度信息"
+        },
+        "invite_summary": {
+          "$ref": "#/definitions/adminInviteSummary",
+          "title": "邀请码使用统计\n显示用户的邀请码使用情况，如 \"已用 1/3\""
+        },
+        "activated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "激活时间（Unix 时间戳，秒）\n未激活用户此字段为 0"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "注册时间（Unix 时间戳，秒）"
+        }
+      },
+      "description": "包含用户的基本信息和关键状态，用于列表展示",
+      "title": "UserListItem - 用户列表项"
+    },
+    "adminUserListResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "title": "业务状态码（0 表示成功）"
+        },
+        "message": {
+          "type": "string",
+          "title": "响应消息"
+        },
+        "data": {
+          "$ref": "#/definitions/adminUserListData",
+          "title": "响应数据（code=0 时有值）"
+        }
+      },
+      "title": "UserListResponse - 用户列表响应"
+    },
+    "adminUserOperationsData": {
+      "type": "object",
+      "properties": {
+        "page_info": {
+          "$ref": "#/definitions/adminPageInfo",
+          "title": "分页信息"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/adminOperationRecord"
+          },
+          "title": "操作记录列表"
+        }
+      },
+      "title": "UserOperationsData - 用户操作记录数据"
+    },
+    "adminUserOperationsQuery": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "用户 ID（必填）"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "筛选操作类型（可选，支持多选）\n可选值:\n- \"activate\": 激活\n- \"ban\": 封禁\n- \"unban\": 解封\n- \"delete\": 删除\n- \"set_quota\": 设置限额\n- \"set_unlimited\": 设置不限额\n- \"update_profile\": 修改资料\n不传则返回所有操作记录"
+        },
+        "pagination": {
+          "$ref": "#/definitions/adminPagination",
+          "title": "分页参数"
+        }
+      },
+      "title": "UserOperationsQuery - 用户操作记录查询请求"
+    },
+    "adminUserOperationsResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32",
+          "title": "业务状态码"
+        },
+        "message": {
+          "type": "string",
+          "title": "响应消息"
+        },
+        "data": {
+          "$ref": "#/definitions/adminUserOperationsData",
+          "title": "操作记录数据"
+        }
+      },
+      "title": "UserOperationsResponse - 用户操作记录响应"
+    },
+    "adminUserQuery": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string",
+          "title": "关键词搜索\n搜索范围: 手机号、昵称、机构名、user_id\n匹配方式: 包含（LIKE %keyword%）"
+        },
+        "invite_code": {
+          "type": "string",
+          "title": "通过使用的邀请码搜索\n精确匹配，找到使用该邀请码激活的用户"
+        },
+        "inviter_phone": {
+          "type": "string",
+          "title": "通过邀请人手机号搜索\n找到被该手机号用户邀请的所有用户"
+        },
+        "inviter_user_id": {
+          "type": "string",
+          "title": "通过邀请人用户 ID 搜索\n找到被该用户邀请的所有用户"
+        },
+        "status": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "状态筛选（支持多选）\n可选值:\n- \"unapplied\": 未申请\n- \"waiting\": 排队中\n- \"active\": 已激活\n- \"banned\": 已封禁\n- \"deleted\": 已删除\n示例: [\"active\", \"banned\"] 筛选激活和封禁用户"
+        },
+        "identity_type": {
+          "type": "string",
+          "title": "身份类型筛选\n可选值:\n- \"individual\": 个人用户\n- \"organization\": 机构用户"
+        },
+        "quota_type": {
+          "type": "string",
+          "title": "额度类型筛选\n可选值:\n- \"default\": 默认额度（50/天）\n- \"custom\": 自定义额度（管理员设置）\n- \"unlimited\": 不限额"
+        },
+        "activated_by": {
+          "type": "string",
+          "title": "激活方式筛选\n可选值:\n- \"auto_release\": 定时自动放量\n- \"invite\": 邀请码激活\n- \"admin\": 后台手动激活"
+        },
+        "created_at": {
+          "$ref": "#/definitions/adminTimeRange",
+          "title": "注册时间范围（用户创建时间）"
+        },
+        "activated_at": {
+          "$ref": "#/definitions/adminTimeRange",
+          "title": "激活时间范围（状态变为 ACTIVE 的时间）"
+        },
+        "sort_by": {
+          "type": "string",
+          "title": "排序字段\n可选值:\n- \"created_at\": 注册时间（默认）\n- \"activated_at\": 激活时间\n- \"used_today\": 今日用量"
+        },
+        "sort_order": {
+          "type": "string",
+          "title": "排序方向\n可选值:\n- \"desc\": 降序（默认，最新/最多在前）\n- \"asc\": 升序"
+        },
+        "pagination": {
+          "$ref": "#/definitions/adminPagination",
+          "title": "分页参数"
+        }
+      },
+      "description": "支持多维度筛选、排序和分页\n所有筛选条件为可选，不传则不筛选\n\n-------------------------------------------------------------------------\n 搜索条件（模糊匹配）\n -------------------------------------------------------------------------",
+      "title": "UserQuery - 用户列表查询请求"
+    },
+    "adminUserQuotaInfo": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "title": "额度类型\n可选值:\n- \"default\": 默认额度（50/天）\n- \"custom\": 自定义额度\n- \"unlimited\": 不限额"
+        },
+        "daily_limit": {
+          "type": "integer",
+          "format": "int32",
+          "title": "每日限额\n默认 50，不限额用户此字段无意义"
+        },
+        "used_today": {
+          "type": "integer",
+          "format": "int32",
+          "title": "今日已使用次数\n每日北京时间 0 点重置"
+        },
+        "remaining_today": {
+          "type": "integer",
+          "format": "int32",
+          "title": "今日剩余次数\n- 正常用户: daily_limit - used_today\n- 不限额用户: -1（表示无限）"
+        }
+      },
+      "title": "UserQuotaInfo - 用户额度信息"
     },
     "protobufAny": {
       "type": "object",
