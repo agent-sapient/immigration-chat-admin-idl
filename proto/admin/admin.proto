@@ -3,6 +3,8 @@ package admin;
 
 import "google/api/annotations.proto";
 
+import "admin/admin_common.proto";
+
 option go_package = "github.com/agent-sapient/immigration-chat-admin-idl-go/proto/admin";
 
 
@@ -113,4 +115,1194 @@ service AdminInnerService {
       get: "/inner/users/{user_id}"
     };
   }
+}
+
+
+// =============================================================================
+// 服务定义
+// =============================================================================
+
+// AdminUserService - 用户管理服务
+//
+// 提供用户的查询、状态管理、资料修改等功能
+// 所有写操作会记录操作日志，支持审计追溯
+service AdminUserService {
+  // -------------------------------------------------------------------------
+  // 查询接口
+  // -------------------------------------------------------------------------
+  
+  // GetUsers - 获取用户列表
+  //
+  // 功能: 分页查询用户列表，支持多维度筛选和排序
+  //
+  // 筛选条件:
+  // - keyword: 关键词搜索（手机号/昵称/机构名/user_id）
+  // - status: 状态筛选（支持多选）
+  // - identity_type: 身份类型（individual/organization）
+  // - quota_type: 额度类型（default/custom/unlimited）
+  // - activated_by: 激活方式（auto_release/invite/admin）
+  // - 时间范围: 注册时间、激活时间
+  // - 邀请关系: 邀请码、邀请人
+  //
+  // 返回: 用户列表（包含基本信息、额度信息、邀请码使用统计）
+  rpc GetUsers(UserQuery) returns (UserListResponse);
+  
+  // GetUserDetail - 获取用户详情
+  //
+  // 功能: 获取单个用户的完整信息
+  //
+  // 返回内容:
+  // - 基本信息（手机号、昵称、身份类型、机构名等）
+  // - 状态信息（当前状态、状态变更时间、激活信息）
+  // - 邀请人信息（谁邀请的、使用的邀请码）
+  // - 额度信息（类型、限额、今日用量）
+  // - 手机号变更历史
+  // - 用户的邀请码列表（3 个）
+  //
+  // 错误码:
+  // - 404: 用户不存在
+  rpc GetUserDetail(UserIdRequest) returns (UserDetailResponse);
+  
+  // GetUserOperations - 获取用户操作记录
+  //
+  // 功能: 查询针对指定用户的所有管理员操作记录
+  //
+  // 用途: 审计追踪，查看用户被执行过哪些操作
+  //
+  // 记录内容:
+  // - 操作类型（activate/ban/unban/delete/set_quota 等）
+  // - 操作参数（如设置的额度值）
+  // - 操作原因
+  // - 操作者（admin_id）
+  // - 操作时间
+  rpc GetUserOperations(UserOperationsQuery) returns (UserOperationsResponse);
+  
+  // -------------------------------------------------------------------------
+  // 状态管理接口
+  // -------------------------------------------------------------------------
+  
+  // ActivateUser - 激活用户（后台手动激活）
+  //
+  // 功能: 将 UNAPPLIED 或 WAITING 状态的用户直接激活为 ACTIVE
+  //
+  // 业务逻辑:
+  // 1. 用户状态变为 ACTIVE
+  // 2. 激活来源记录为 ADMIN
+  // 3. 为用户生成 3 个普通邀请码
+  //
+  // 参数要求:
+  // - user_id: 必填
+  // - reason: 必填（激活原因，用于审计）
+  //
+  // 前置条件:
+  // - 用户状态为 UNAPPLIED 或 WAITING
+  //
+  // 错误码:
+  // - 400: 状态不允许激活（已激活/已封禁/已删除）
+  // - 404: 用户不存在
+  rpc ActivateUser(ActivateUserRequest) returns (ApiResponse);
+  
+  // BanUser - 封禁用户
+  //
+  // 功能: 封禁活跃用户，立即踢下线
+  //
+  // 业务逻辑:
+  // 1. 用户状态变为 BANNED
+  // 2. 撤销用户所有 token（立即踢下线）
+  // 3. 暂停用户所有未使用的邀请码（解封时恢复）
+  //
+  // 参数要求:
+  // - user_id: 必填
+  // - reason: 必填（封禁原因，用于审计和用户申诉）
+  //
+  // 前置条件:
+  // - 用户状态为 ACTIVE
+  //
+  // 错误码:
+  // - 400: 状态不允许封禁（非 ACTIVE 状态）
+  // - 404: 用户不存在
+  rpc BanUser(BanUserRequest) returns (ApiResponse);
+  
+  // UnbanUser - 解封用户
+  //
+  // 功能: 解除用户封禁，恢复正常使用
+  //
+  // 业务逻辑:
+  // 1. 用户状态恢复为 ACTIVE
+  // 2. 恢复因封禁而暂停的邀请码
+  // 3. 用户原有权益（额度配置等）保留
+  //
+  // 参数要求:
+  // - user_id: 必填
+  // - reason: 必填（解封原因）
+  //
+  // 前置条件:
+  // - 用户状态为 BANNED
+  //
+  // 错误码:
+  // - 400: 用户非封禁状态
+  // - 404: 用户不存在
+  rpc UnbanUser(UnbanUserRequest) returns (ApiResponse);
+  
+  // DeleteUser - 删除用户（软删除）
+  //
+  // 功能: 删除用户，释放账号标识
+  //
+  // ⚠️ 警告: 此操作不可逆！
+  //
+  // 业务逻辑:
+  // 1. 用户状态变为 DELETED
+  // 2. 清空手机号、openid、unionid（释放标识，允许重新注册）
+  // 3. 作废所有未使用的邀请码
+  // 4. 撤销所有 token（立即踢下线）
+  // 5. 记录注销日志（用于审计）
+  //
+  // 参数要求:
+  // - user_id: 必填
+  // - reason: 必填（删除原因，用于审计）
+  //
+  // 错误码:
+  // - 400: 用户已被删除
+  // - 404: 用户不存在
+  rpc DeleteUser(DeleteUserRequest) returns (ApiResponse);
+  
+  // -------------------------------------------------------------------------
+  // 资料与配额管理
+  // -------------------------------------------------------------------------
+  
+  // UpdateUserProfile - 修改用户资料
+  //
+  // 功能: 修改用户的身份类型、机构名等资料
+  //
+  // 可修改字段:
+  // - identity_type: 身份类型（individual/organization）
+  // - org_name: 机构名称
+  //
+  // 参数要求:
+  // - user_id: 必填
+  // - reason: 必填
+  // - 至少提供一个要修改的字段
+  //
+  // 错误码:
+  // - 404: 用户不存在
+  rpc UpdateUserProfile(UpdateProfileRequest) returns (ApiResponse);
+  
+  // SetUserQuota - 设置用户额度
+  //
+  // 功能: 设置用户的每日使用限额或不限额状态
+  //
+  // 使用场景:
+  // 1. 设置自定义限额: is_unlimited=false, daily_limit=100
+  // 2. 设置不限额: is_unlimited=true
+  // 3. 恢复默认限额: is_unlimited=false, 不传 daily_limit
+  // 4. 关闭不限额: is_unlimited=false（恢复默认 50/天）
+  //
+  // 参数要求:
+  // - user_id: 必填
+  // - reason: 必填
+  //
+  // 业务规则:
+  // - 限额调整立即生效
+  // - 若将限额调低到 < 今日已用，用户立即被拦截到次日
+  //
+  // 错误码:
+  // - 404: 用户不存在
+  rpc SetUserQuota(SetQuotaRequest) returns (ApiResponse);
+}
+
+// AdminInviteService - 邀请码管理服务
+//
+// 提供邀请码的查询、生成、作废等功能
+// 支持普通邀请码和不限额邀请码两种类型
+service AdminInviteService {
+  // -------------------------------------------------------------------------
+  // 查询接口
+  // -------------------------------------------------------------------------
+  
+  // GetInviteCodes - 获取邀请码列表
+  //
+  // 功能: 分页查询邀请码列表，支持多维度筛选
+  //
+  // 筛选条件:
+  // - code: 精确匹配邀请码
+  // - batch_id: 批次号（同一批生成的邀请码共享）
+  // - type: 类型（normal/unlimited）
+  // - status: 状态（unused/used/revoked/suspended）
+  // - inviter_kind: 生成者类型（user/admin）
+  // - 生成者/使用者 ID
+  // - 时间范围
+  //
+  // 返回: 邀请码列表（包含完整信息和关联用户信息）
+  rpc GetInviteCodes(InviteCodeQuery) returns (InviteCodeListResponse);
+  
+  // BatchQueryCodes - 批量查询邀请码信息
+  //
+  // 功能: 根据邀请码字符串批量查询详细信息
+  //
+  // 使用场景:
+  // - 批量导入邀请码时检查状态
+  // - 批量查看邀请码使用情况
+  //
+  // 参数要求:
+  // - codes: 邀请码字符串列表，最多 100 个
+  //
+  // 返回:
+  // - found: 找到的邀请码列表
+  // - not_found: 未找到的邀请码列表
+  rpc BatchQueryCodes(BatchQueryCodesRequest) returns (BatchQueryCodesResponse);
+  
+  // GetInviteChain - 获取邀请链
+  //
+  // 功能: 查看用户的邀请关系链
+  //
+  // 返回内容:
+  // - user: 当前用户信息
+  // - invited_by: 邀请当前用户的人（上级）
+  // - invited_users: 当前用户邀请的人列表（下级）
+  //
+  // 用途:
+  // - 追溯邀请来源
+  // - 查看邀请裂变效果
+  //
+  // 错误码:
+  // - 404: 用户不存在
+  rpc GetInviteChain(UserIdRequest) returns (InviteChainResponse);
+  
+  // -------------------------------------------------------------------------
+  // 管理接口
+  // -------------------------------------------------------------------------
+  
+  // GenerateCodes - 生成邀请码（管理员生成）
+  //
+  // 功能: 批量生成管理员邀请码
+  //
+  // 参数要求:
+  // - type: 必填，"normal" 或 "unlimited"
+  // - count: 必填，1-100
+  // - note: 必填，备注说明（同一批次共享）
+  //
+  // 返回:
+  // - batch_id: 批次号（用于追踪和导出）
+  // - codes: 生成的邀请码列表
+  //
+  // 业务规则:
+  // - 管理员生成的邀请码标记 inviter_kind=admin
+  // - 使用不限额邀请码激活的用户自动获得不限额权益
+  rpc GenerateCodes(GenerateCodesRequest) returns (GenerateCodesResponse);
+  
+  // RegenerateCodes - 重新生成邀请码（换码）
+  //
+  // 功能: 作废指定邀请码并生成新码
+  //
+  // 使用场景:
+  // - 用户邀请码泄露，需要作废旧码换新码
+  // - 邀请码长期未使用，需要更换
+  //
+  // 业务规则:
+  // - 仅对"未使用"状态的邀请码允许换码
+  // - 换码 = 作废旧码 + 生成新码
+  // - 新码继承原码的 type、inviter 等属性
+  // - 不增加邀请名额
+  //
+  // 参数要求:
+  // - codes: 要换的邀请码列表
+  // - reason: 必填
+  //
+  // 返回:
+  // - revoked: 被作废的邀请码列表
+  // - generated: 新生成的邀请码列表
+  //
+  // 注意: 如果某个邀请码不存在或状态不允许，会跳过并继续处理其他邀请码
+  rpc RegenerateCodes(RegenerateCodesRequest) returns (RegenerateCodesResponse);
+  
+  // RevokeCode - 作废邀请码
+  //
+  // 功能: 作废指定的邀请码
+  //
+  // 参数要求:
+  // - code: 必填，邀请码字符串
+  // - reason: 必填
+  //
+  // 前置条件:
+  // - 邀请码状态为 unused 或 suspended
+  //
+  // 错误码:
+  // - 400: 已使用的邀请码不能作废 / 邀请码已被作废
+  // - 404: 邀请码不存在
+  rpc RevokeCode(RevokeCodeRequest) returns (ApiResponse);
+}
+
+// =============================================================================
+// 用户管理消息定义
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 请求消息
+// -----------------------------------------------------------------------------
+
+// UserIdRequest - 用户 ID 请求
+//
+// 用于只需要 user_id 参数的接口
+message UserIdRequest {
+  // 用户 ID（UUID 格式）
+  // 示例: "550e8400-e29b-41d4-a716-446655440000"
+  string user_id = 1;
+}
+
+// UserQuery - 用户列表查询请求
+//
+// 支持多维度筛选、排序和分页
+// 所有筛选条件为可选，不传则不筛选
+message UserQuery {
+  // -------------------------------------------------------------------------
+  // 搜索条件（模糊匹配）
+  // -------------------------------------------------------------------------
+  
+  // 关键词搜索
+  // 搜索范围: 手机号、昵称、机构名、user_id
+  // 匹配方式: 包含（LIKE %keyword%）
+  string keyword = 1;
+  
+  // 通过使用的邀请码搜索
+  // 精确匹配，找到使用该邀请码激活的用户
+  string invite_code = 2;
+  
+  // 通过邀请人手机号搜索
+  // 找到被该手机号用户邀请的所有用户
+  string inviter_phone = 3;
+  
+  // 通过邀请人用户 ID 搜索
+  // 找到被该用户邀请的所有用户
+  string inviter_user_id = 4;
+  
+  // -------------------------------------------------------------------------
+  // 筛选条件（精确匹配）
+  // -------------------------------------------------------------------------
+  
+  // 状态筛选（支持多选）
+  // 可选值:
+  // - "unapplied": 未申请
+  // - "waiting": 排队中
+  // - "active": 已激活
+  // - "banned": 已封禁
+  // - "deleted": 已删除
+  // 示例: ["active", "banned"] 筛选激活和封禁用户
+  repeated string status = 5;
+  
+  // 身份类型筛选
+  // 可选值:
+  // - "individual": 个人用户
+  // - "organization": 机构用户
+  string identity_type = 6;
+  
+  // 额度类型筛选
+  // 可选值:
+  // - "default": 默认额度（50/天）
+  // - "custom": 自定义额度（管理员设置）
+  // - "unlimited": 不限额
+  string quota_type = 7;
+  
+  // 激活方式筛选
+  // 可选值:
+  // - "auto_release": 定时自动放量
+  // - "invite": 邀请码激活
+  // - "admin": 后台手动激活
+  string activated_by = 8;
+  
+  // -------------------------------------------------------------------------
+  // 时间范围筛选
+  // -------------------------------------------------------------------------
+  
+  // 注册时间范围（用户创建时间）
+  TimeRange created_at = 9;
+  
+  // 激活时间范围（状态变为 ACTIVE 的时间）
+  TimeRange activated_at = 10;
+  
+  // -------------------------------------------------------------------------
+  // 排序
+  // -------------------------------------------------------------------------
+  
+  // 排序字段
+  // 可选值:
+  // - "created_at": 注册时间（默认）
+  // - "activated_at": 激活时间
+  // - "used_today": 今日用量
+  string sort_by = 11;
+  
+  // 排序方向
+  // 可选值:
+  // - "desc": 降序（默认，最新/最多在前）
+  // - "asc": 升序
+  string sort_order = 12;
+  
+  // -------------------------------------------------------------------------
+  // 分页
+  // -------------------------------------------------------------------------
+  
+  // 分页参数
+  Pagination pagination = 13;
+}
+
+// ActivateUserRequest - 激活用户请求
+message ActivateUserRequest {
+  // 用户 ID（必填）
+  string user_id = 1;
+  
+  // 激活原因（必填）
+  // 示例: "VIP 客户优先激活"、"内部测试账号"
+  string reason = 2;
+}
+
+// BanUserRequest - 封禁用户请求
+message BanUserRequest {
+  // 用户 ID（必填）
+  string user_id = 1;
+  
+  // 封禁原因（必填）
+  // 示例: "违反使用条款"、"异常使用行为"
+  // 注意: 此原因会记录在案，可能用于用户申诉时的参考
+  string reason = 2;
+}
+
+// UnbanUserRequest - 解封用户请求
+message UnbanUserRequest {
+  // 用户 ID（必填）
+  string user_id = 1;
+  
+  // 解封原因（必填）
+  // 示例: "用户申诉通过"、"误封"
+  string reason = 2;
+}
+
+// DeleteUserRequest - 删除用户请求
+message DeleteUserRequest {
+  // 用户 ID（必填）
+  string user_id = 1;
+  
+  // 删除原因（必填）
+  // ⚠️ 此操作不可逆，请务必填写准确的原因
+  // 示例: "用户主动申请注销"、"长期未使用清理"
+  string reason = 2;
+}
+
+// UpdateProfileRequest - 修改用户资料请求
+message UpdateProfileRequest {
+  // 用户 ID（必填）
+  string user_id = 1;
+  
+  // 身份类型（可选）
+  // 可选值: "individual"（个人）、"organization"（机构）
+  // 不传则不修改
+  optional string identity_type = 2;
+  
+  // 机构名称（可选）
+  // 仅当 identity_type 为 "organization" 时有意义
+  // 不传则不修改
+  optional string org_name = 3;
+  
+  // 修改原因（必填）
+  string reason = 4;
+}
+
+// SetQuotaRequest - 设置用户额度请求
+//
+// 使用场景:
+// 1. 设置自定义限额: is_unlimited=false, daily_limit=100
+// 2. 设置不限额: is_unlimited=true（daily_limit 会被忽略）
+// 3. 恢复默认限额: is_unlimited=false, 不设置 daily_limit
+message SetQuotaRequest {
+  // 用户 ID（必填）
+  string user_id = 1;
+  
+  // 是否不限额
+  // - true: 用户无使用上限
+  // - false: 使用 daily_limit 或默认限额
+  bool is_unlimited = 2;
+  
+  // 每日限额（可选）
+  // - 设置具体值: 用户每日最多使用该次数
+  // - 不设置（使用 optional）: 恢复默认值（50/天）
+  // 注意: 当 is_unlimited=true 时，此字段无效
+  optional int32 daily_limit = 3;
+  
+  // 修改原因（必填）
+  string reason = 4;
+}
+
+// UserOperationsQuery - 用户操作记录查询请求
+message UserOperationsQuery {
+  // 用户 ID（必填）
+  string user_id = 1;
+  
+  // 筛选操作类型（可选，支持多选）
+  // 可选值:
+  // - "activate": 激活
+  // - "ban": 封禁
+  // - "unban": 解封
+  // - "delete": 删除
+  // - "set_quota": 设置限额
+  // - "set_unlimited": 设置不限额
+  // - "update_profile": 修改资料
+  // 不传则返回所有操作记录
+  repeated string operations = 2;
+  
+  // 分页参数
+  Pagination pagination = 3;
+}
+
+// -----------------------------------------------------------------------------
+// 响应消息
+// -----------------------------------------------------------------------------
+
+// UserListResponse - 用户列表响应
+message UserListResponse {
+  // 业务状态码（0 表示成功）
+  int32 code = 1;
+  
+  // 响应消息
+  string message = 2;
+  
+  // 响应数据（code=0 时有值）
+  UserListData data = 3;
+}
+
+// UserListData - 用户列表数据
+message UserListData {
+  // 分页信息
+  PageInfo page_info = 1;
+  
+  // 用户列表
+  repeated UserListItem items = 2;
+}
+
+// UserListItem - 用户列表项
+//
+// 包含用户的基本信息和关键状态，用于列表展示
+message UserListItem {
+  // 用户 ID（UUID 格式）
+  string user_id = 1;
+  
+  // 当前绑定的手机号
+  // 注意: 已删除用户此字段为空
+  string phone = 2;
+  
+  // 用户昵称
+  string nickname = 3;
+  
+  // 身份类型
+  // 可选值: "individual"（个人）、"organization"（机构）
+  string identity_type = 4;
+  
+  // 机构名称（仅机构用户有值）
+  string org_name = 5;
+  
+  // 用户状态
+  // 可选值: "unapplied"、"waiting"、"active"、"banned"、"deleted"
+  string status = 6;
+  
+  // 额度信息
+  UserQuotaInfo quota = 7;
+  
+  // 邀请码使用统计
+  // 显示用户的邀请码使用情况，如 "已用 1/3"
+  InviteSummary invite_summary = 8;
+  
+  // 激活时间（Unix 时间戳，秒）
+  // 未激活用户此字段为 0
+  int64 activated_at = 9;
+  
+  // 注册时间（Unix 时间戳，秒）
+  int64 created_at = 10;
+}
+
+// UserQuotaInfo - 用户额度信息
+message UserQuotaInfo {
+  // 额度类型
+  // 可选值:
+  // - "default": 默认额度（50/天）
+  // - "custom": 自定义额度
+  // - "unlimited": 不限额
+  string type = 1;
+  
+  // 每日限额
+  // 默认 50，不限额用户此字段无意义
+  int32 daily_limit = 2;
+  
+  // 今日已使用次数
+  // 每日北京时间 0 点重置
+  int32 used_today = 3;
+  
+  // 今日剩余次数
+  // - 正常用户: daily_limit - used_today
+  // - 不限额用户: -1（表示无限）
+  int32 remaining_today = 4;
+}
+
+// InviteSummary - 邀请码统计摘要
+//
+// 用于列表展示用户的邀请码使用情况
+message InviteSummary {
+  // 邀请码总数（通常为 3）
+  int32 total = 1;
+  
+  // 已使用数量
+  int32 used = 2;
+}
+
+// UserDetailResponse - 用户详情响应
+message UserDetailResponse {
+  // 业务状态码
+  int32 code = 1;
+  
+  // 响应消息
+  string message = 2;
+  
+  // 用户详情数据（code=0 时有值）
+  UserDetailData data = 3;
+}
+
+// UserDetailData - 用户详情数据
+//
+// 包含用户的完整信息，用于详情页展示
+message UserDetailData {
+  // -------------------------------------------------------------------------
+  // 基本信息
+  // -------------------------------------------------------------------------
+  
+  // 用户 ID（系统内部稳定主键）
+  string user_id = 1;
+  
+  // 当前绑定手机号（完整，未脱敏）
+  // 已删除用户此字段为空
+  string phone = 2;
+  
+  // 手机号变更历史
+  // 按时间倒序排列，最新变更在前
+  repeated PhoneChangeRecord phone_history = 3;
+  
+  // 用户昵称
+  string nickname = 4;
+  
+  // 头像 URL
+  string avatar_url = 5;
+  
+  // 身份类型: "individual" 或 "organization"
+  string identity_type = 6;
+  
+  // 机构名称（仅机构用户）
+  string org_name = 7;
+  
+  // 年客户量（用户填写的业务信息）
+  int32 annual_clients = 8;
+  
+  // -------------------------------------------------------------------------
+  // 状态信息
+  // -------------------------------------------------------------------------
+  
+  // 当前状态
+  // 可选值: "unapplied"、"waiting"、"active"、"banned"、"deleted"
+  string status = 9;
+  
+  // 状态最近一次变更时间（Unix 时间戳，秒）
+  int64 status_updated_at = 10;
+  
+  // 申请内测时间（UNAPPLIED → WAITING 的时间）
+  int64 applied_at = 11;
+  
+  // 激活时间（进入 ACTIVE 的时间）
+  int64 activated_at = 12;
+  
+  // 激活方式
+  // 可选值:
+  // - "auto_release": 定时自动放量
+  // - "invite": 邀请码激活
+  // - "admin": 后台手动激活
+  string activated_by = 13;
+  
+  // 激活操作的管理员 ID
+  // 仅当 activated_by="admin" 时有值
+  string activated_by_admin_id = 14;
+  
+  // 使用的邀请码
+  // 仅当 activated_by="invite" 时有值
+  string activated_code = 15;
+  
+  // -------------------------------------------------------------------------
+  // 邀请人信息
+  // -------------------------------------------------------------------------
+  
+  // 邀请人信息
+  // 通过邀请码激活时记录谁邀请的
+  InviterInfo inviter = 16;
+  
+  // -------------------------------------------------------------------------
+  // 额度信息
+  // -------------------------------------------------------------------------
+  
+  // 当前额度配置
+  UserQuotaInfo quota = 17;
+  
+  // -------------------------------------------------------------------------
+  // 邀请码列表
+  // -------------------------------------------------------------------------
+  
+  // 用户的邀请码列表
+  // 用户激活时自动获得 3 个普通邀请码
+  repeated InviteCodeDetail invite_codes = 18;
+  
+  // -------------------------------------------------------------------------
+  // 时间信息
+  // -------------------------------------------------------------------------
+  
+  // 注册时间（Unix 时间戳，秒）
+  int64 created_at = 19;
+}
+
+// PhoneChangeRecord - 手机号变更记录
+message PhoneChangeRecord {
+  // 旧手机号
+  string old_phone = 1;
+  
+  // 新手机号
+  string new_phone = 2;
+  
+  // 变更时间（Unix 时间戳，秒）
+  int64 changed_at = 3;
+}
+
+// InviterInfo - 邀请人信息
+//
+// 记录邀请码的来源（用户邀请或管理员生成）
+message InviterInfo {
+  // 邀请人类型
+  // 可选值:
+  // - "user": 用户邀请（通过用户的邀请码）
+  // - "admin": 管理员邀请（通过管理员生成的邀请码）
+  string kind = 1;
+  
+  // 邀请人用户 ID（kind="user" 时有值）
+  string user_id = 2;
+  
+  // 邀请人手机号（kind="user" 时有值，脱敏显示）
+  string phone = 3;
+  
+  // 邀请人昵称（kind="user" 时有值）
+  string nickname = 4;
+  
+  // 管理员 ID（kind="admin" 时有值）
+  string admin_id = 5;
+}
+
+// InviteCodeDetail - 邀请码详情
+//
+// 用于用户详情页展示用户的邀请码列表
+message InviteCodeDetail {
+  // 邀请码字符串（8 位大写字母+数字）
+  // 示例: "ABC12345"
+  string code = 1;
+  
+  // 邀请码类型
+  // 可选值:
+  // - "normal": 普通邀请码
+  // - "unlimited": 不限额邀请码
+  string type = 2;
+  
+  // 邀请码状态
+  // 可选值:
+  // - "unused": 未使用
+  // - "used": 已使用
+  // - "revoked": 已作废
+  // - "suspended": 已暂停（用户被封禁时暂停）
+  string status = 3;
+  
+  // 使用者信息（status="used" 时有值）
+  UserBrief used_by = 4;
+  
+  // 使用时间（Unix 时间戳，秒）
+  int64 used_at = 5;
+  
+  // 创建时间（Unix 时间戳，秒）
+  int64 created_at = 6;
+}
+
+// UserBrief - 用户简要信息
+//
+// 用于在其他对象中引用用户时的简要展示
+message UserBrief {
+  // 用户 ID
+  string user_id = 1;
+  
+  // 用户昵称
+  string nickname = 2;
+  
+  // 手机号（脱敏显示，如 "138****1234"）
+  string phone = 3;
+}
+
+// UserOperationsResponse - 用户操作记录响应
+message UserOperationsResponse {
+  // 业务状态码
+  int32 code = 1;
+  
+  // 响应消息
+  string message = 2;
+  
+  // 操作记录数据
+  UserOperationsData data = 3;
+}
+
+// UserOperationsData - 用户操作记录数据
+message UserOperationsData {
+  // 分页信息
+  PageInfo page_info = 1;
+  
+  // 操作记录列表
+  repeated OperationRecord items = 2;
+}
+
+// OperationRecord - 操作记录
+//
+// 记录管理员对用户执行的操作，用于审计
+message OperationRecord {
+  // 操作类型
+  // 可选值:
+  // - "activate": 激活用户
+  // - "ban": 封禁用户
+  // - "unban": 解封用户
+  // - "delete": 删除用户
+  // - "set_quota": 设置限额
+  // - "set_unlimited": 设置不限额
+  // - "update_profile": 修改用户资料
+  // - "generate_code": 生成邀请码
+  // - "revoke_code": 作废邀请码
+  // - "regenerate_code": 重新生成邀请码
+  string operation = 1;
+  
+  // 操作参数（JSON 字符串）
+  // 记录操作的具体参数，如:
+  // - 设置限额: {"daily_limit": 100}
+  // - 封禁用户: {"revoked_tokens": 2, "suspended_codes": 3}
+  string params = 2;
+  
+  // 操作原因
+  string reason = 3;
+  
+  // 操作者管理员 ID
+  string admin_id = 4;
+  
+  // 操作时间（Unix 时间戳，秒）
+  int64 created_at = 5;
+}
+
+// =============================================================================
+// 邀请码管理消息定义
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 请求消息
+// -----------------------------------------------------------------------------
+
+// InviteCodeQuery - 邀请码列表查询请求
+message InviteCodeQuery {
+  // -------------------------------------------------------------------------
+  // 搜索条件
+  // -------------------------------------------------------------------------
+  
+  // 邀请码精确匹配
+  // 支持大小写，会自动转为大写匹配
+  string code = 1;
+  
+  // 批次号筛选
+  // 同一批生成的邀请码共享一个 batch_id
+  string batch_id = 2;
+  
+  // -------------------------------------------------------------------------
+  // 筛选条件
+  // -------------------------------------------------------------------------
+  
+  // 类型筛选
+  // 可选值: "normal"（普通）、"unlimited"（不限额）
+  string type = 3;
+  
+  // 状态筛选
+  // 可选值:
+  // - "unused": 未使用
+  // - "used": 已使用
+  // - "revoked": 已作废
+  // - "suspended": 已暂停（用户被封禁时）
+  string status = 4;
+  
+  // 生成者类型筛选
+  // 可选值: "user"（用户生成）、"admin"（管理员生成）
+  string inviter_kind = 5;
+  
+  // 生成者用户 ID（inviter_kind="user" 时）
+  string inviter_user_id = 6;
+  
+  // 生成者管理员 ID（inviter_kind="admin" 时）
+  string inviter_admin_id = 7;
+  
+  // 使用者用户 ID
+  // 筛选被指定用户使用的邀请码
+  string used_by_user_id = 8;
+  
+  // -------------------------------------------------------------------------
+  // 时间范围筛选
+  // -------------------------------------------------------------------------
+  
+  // 创建时间范围
+  TimeRange created_at = 9;
+  
+  // -------------------------------------------------------------------------
+  // 排序
+  // -------------------------------------------------------------------------
+  
+  // 排序字段
+  // 可选值: "created_at"（默认）、"used_at"
+  string sort_by = 10;
+  
+  // 排序方向
+  // 可选值: "desc"（默认）、"asc"
+  string sort_order = 11;
+  
+  // -------------------------------------------------------------------------
+  // 分页
+  // -------------------------------------------------------------------------
+  
+  Pagination pagination = 12;
+}
+
+// BatchQueryCodesRequest - 批量查询邀请码请求
+message BatchQueryCodesRequest {
+  // 邀请码字符串列表
+  // 最多 100 个，超出返回错误
+  // 支持大小写，会自动转为大写匹配
+  repeated string codes = 1;
+}
+
+// GenerateCodesRequest - 生成邀请码请求
+message GenerateCodesRequest {
+  // 邀请码类型（必填）
+  // 可选值:
+  // - "normal": 普通邀请码（Ops、SuperAdmin 可生成）
+  // - "unlimited": 不限额邀请码（仅 SuperAdmin 可生成）
+  string type = 1;
+  
+  // 生成数量（必填）
+  // 范围: 1-100
+  int32 count = 2;
+  
+  // 备注说明（必填）
+  // 同一批次的邀请码共享此备注
+  // 示例: "2026年2月营销活动"、"内部测试用"
+  string note = 3;
+}
+
+// RegenerateCodesRequest - 重新生成邀请码请求（换码）
+message RegenerateCodesRequest {
+  // 要作废并重新生成的邀请码列表
+  // 仅对 "unused" 状态的邀请码有效
+  repeated string codes = 1;
+  
+  // 换码原因（必填）
+  // 示例: "原码已泄露"、"用户申请换码"
+  string reason = 2;
+}
+
+// RevokeCodeRequest - 作废邀请码请求
+message RevokeCodeRequest {
+  // 邀请码字符串（必填）
+  string code = 1;
+  
+  // 作废原因（必填）
+  string reason = 2;
+}
+
+// -----------------------------------------------------------------------------
+// 响应消息
+// -----------------------------------------------------------------------------
+
+// InviteCodeListResponse - 邀请码列表响应
+message InviteCodeListResponse {
+  int32 code = 1;
+  string message = 2;
+  InviteCodeListData data = 3;
+}
+
+// InviteCodeListData - 邀请码列表数据
+message InviteCodeListData {
+  // 分页信息
+  PageInfo page_info = 1;
+  
+  // 邀请码列表
+  repeated InviteCodeListItem items = 2;
+}
+
+// InviteCodeListItem - 邀请码列表项
+//
+// 包含邀请码的完整信息
+message InviteCodeListItem {
+  // 邀请码字符串（8 位大写字母+数字）
+  string code = 1;
+  
+  // 邀请码类型: "normal" 或 "unlimited"
+  string type = 2;
+  
+  // 邀请码状态: "unused"、"used"、"revoked"、"suspended"
+  string status = 3;
+  
+  // 备注说明
+  string note = 4;
+  
+  // 生成者类型: "user" 或 "admin"
+  string inviter_kind = 5;
+  
+  // 生成者管理员 ID（inviter_kind="admin" 时有值）
+  string inviter_admin_id = 6;
+  
+  // 生成者用户信息（inviter_kind="user" 时有值）
+  UserBrief inviter_user = 7;
+  
+  // 使用者信息（status="used" 时有值）
+  UserBrief used_by = 8;
+  
+  // 使用时间（Unix 时间戳，秒）
+  int64 used_at = 9;
+  
+  // 批次号（同一批生成的邀请码共享）
+  string batch_id = 10;
+  
+  // 创建时间（Unix 时间戳，秒）
+  int64 created_at = 11;
+}
+
+// BatchQueryCodesResponse - 批量查询邀请码响应
+message BatchQueryCodesResponse {
+  int32 code = 1;
+  string message = 2;
+  BatchQueryCodesData data = 3;
+}
+
+// BatchQueryCodesData - 批量查询邀请码数据
+message BatchQueryCodesData {
+  // 找到的邀请码列表
+  repeated InviteCodeListItem found = 1;
+  
+  // 未找到的邀请码列表
+  // 返回原始请求中不存在的邀请码字符串
+  repeated string not_found = 2;
+}
+
+// GenerateCodesResponse - 生成邀请码响应
+message GenerateCodesResponse {
+  int32 code = 1;
+  string message = 2;
+  GenerateCodesData data = 3;
+}
+
+// GenerateCodesData - 生成邀请码数据
+message GenerateCodesData {
+  // 批次号（用于追踪和批量导出）
+  string batch_id = 1;
+  
+  // 生成的邀请码列表
+  repeated string codes = 2;
+  
+  // 邀请码类型
+  string type = 3;
+  
+  // 实际生成数量
+  int32 count = 4;
+}
+
+// RegenerateCodesResponse - 重新生成邀请码响应
+message RegenerateCodesResponse {
+  int32 code = 1;
+  string message = 2;
+  RegenerateCodesData data = 3;
+}
+
+// RegenerateCodesData - 重新生成邀请码数据
+message RegenerateCodesData {
+  // 被作废的邀请码列表
+  repeated string revoked = 1;
+  
+  // 新生成的邀请码列表
+  // 与 revoked 一一对应
+  repeated string generated = 2;
+}
+
+// InviteChainResponse - 邀请链响应
+message InviteChainResponse {
+  int32 code = 1;
+  string message = 2;
+  InviteChainData data = 3;
+}
+
+// InviteChainData - 邀请链数据
+//
+// 展示用户的邀请关系：谁邀请了他 + 他邀请了谁
+message InviteChainData {
+  // 当前用户信息
+  InviteChainUser user = 1;
+  
+  // 邀请当前用户的人（上级）
+  // 如果是自然激活（auto_release）或管理员直接激活，此字段为 null
+  InvitedByInfo invited_by = 2;
+  
+  // 当前用户邀请的人列表（下级）
+  // 按邀请时间倒序排列
+  repeated InviteChainInvitee invited_users = 3;
+}
+
+// InviteChainUser - 邀请链中的用户信息
+message InviteChainUser {
+  string user_id = 1;
+  string nickname = 2;
+  
+  // 手机号（脱敏显示）
+  string phone = 3;
+  
+  // 激活方式: "auto_release"、"invite"、"admin"
+  string activated_by = 4;
+  
+  // 激活时间（Unix 时间戳，秒）
+  int64 activated_at = 5;
+}
+
+// InvitedByInfo - 被谁邀请信息（上级）
+message InvitedByInfo {
+  // 邀请人类型: "user" 或 "admin"
+  string kind = 1;
+  
+  // 邀请人用户 ID（kind="user" 时有值）
+  string user_id = 2;
+  
+  // 邀请人昵称（kind="user" 时有值）
+  string nickname = 3;
+  
+  // 邀请人手机号（kind="user" 时有值，脱敏显示）
+  string phone = 4;
+  
+  // 管理员 ID（kind="admin" 时有值）
+  string admin_id = 5;
+  
+  // 使用的邀请码
+  string code = 6;
+}
+
+// InviteChainInvitee - 邀请链中的被邀请人（下级）
+message InviteChainInvitee {
+  string user_id = 1;
+  string nickname = 2;
+  
+  // 手机号（脱敏显示）
+  string phone = 3;
+  
+  // 使用的邀请码
+  string code = 4;
+  
+  // 激活时间（Unix 时间戳，秒）
+  int64 activated_at = 5;
 }

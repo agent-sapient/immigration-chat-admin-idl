@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "admin/admin.proto",
+    "title": "admin/admin_common.proto",
     "version": "version not set"
   },
   "tags": [
@@ -10,6 +10,12 @@
     },
     {
       "name": "AdminInnerService"
+    },
+    {
+      "name": "AdminUserService"
+    },
+    {
+      "name": "AdminInviteService"
     }
   ],
   "consumes": [
